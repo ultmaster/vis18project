@@ -1,0 +1,20 @@
+.head {
+  margin: 3em 0;
+}
+
+#map {
+  width: 100%;
+}
+
+.seg {
+  margin-bottom: 2em;
+  overflow: visible;
+}
+
+.seg .column {
+  overflow: visible;
+}
+
+.seg svg {
+  overflow: visible;
+}
