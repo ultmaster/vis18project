@@ -5,7 +5,7 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.3.1/semantic.min.css" rel="stylesheet">
   <link href="/static/css/index.css" rel="stylesheet">
 
-  <script src="http://webapi.amap.com/loca?key=e41238e007e06e7227d8a8fbcf5ed1d4"></script>
+  <script src="http://webapi.amap.com/loca?key=e41238e007e06e7227d8a8fbcf5ed1d4&v=1.0.4"></script>
 
   <title>CS239 Project</title>
 </head>
@@ -15,13 +15,34 @@
     <h1 class="ui header">CS239 Project</h1>
   </div>
 
+  <h2 class="ui header">地图总览</h2>
   <div class="seg" id="map"></div>
 
+  <h2 class="ui header">未成年人情况分析</h2>
+  <div class="ui grid seg" id="teen-detail">
+    <div class="ten wide column" id="teen-table" style="overflow-y: scroll;">
+      <table class="ui very compact center aligned table">
+        <thead>
+          <tr><th>ID</th>
+          <th>Name?</th>
+          <th>Online</th>
+          <th>Offline</th>
+          <th>Age</th>
+        </tr></thead>
+        <tbody id="teen-table-body">
+
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2 class="ui header">上网时间分布与年龄分布</h2>
   <div class="ui grid seg" id="add1">
     <div class="ten wide column" id="punchcard1"></div>
     <div class="six wide column" id="stack1"></div>
   </div>
 
+  <h2 class="ui header">团伙检测</h2>
   <div class="ui grid seg">
     <div class="sixteen wide column" id="link1"></div>
   </div>

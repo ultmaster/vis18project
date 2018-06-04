@@ -16,57 +16,93 @@ function initMap() {
         return obj.lat
       })]
   });
+  mapLayer = Loca.visualLayer({
+    container: map1,
+    fitView: false,
+    type: 'point',
+    shape: 'circle',
+    eventSupport: true
+  });
+}
+
+function outputTeenDetailsTable(data) {
+  data.sort(function (a, b) {
+    return a.person_id < b.person_id;
+  });
+  tableBodySelection.empty();
+  $.each(data, function (d, r) {
+    tableBodySelection.append(
+      "<tr class='" + (r.age < 18 ? "warning" : "") + "'>"
+      + "<td>" + r.person_id.substr(0, 6) + "</td>"
+      + "<td>" + r.customer_name + "</td>"
+      + "<td>" + r.online_time + "</td>"
+      + "<td>" + r.offline_time + "</td>"
+      + "<td>" + r.age + "</td>"
+      + "</tr>")
+  });
 }
 
 function paintMap() {
   d3.json("/aggregate1/")
     .then(function (data) {
-      // data = mockData;  // TODO: remove this line after test
-      var layer = Loca.visualLayer({
-        container: map1,
-        fitView: true,
-        type: 'point',
-        shape: 'circle',
-        eventSupport: true
-      });
-      layer.setData(siteData, {
-        lnglat: function (obj) {
-          return [obj.value.lng, obj.value.lat];
+
+      d3.json("/teen/").then(function (addOn1) {
+        function getLevel(siteId) {
+          if (!addOn1.hasOwnProperty(siteId))
+            return 0;
+          return addOn1[siteId].level1 > 0 ? 1 : 2;
         }
+
+        if (!siteTeenData)
+          siteTeenData = addOn1;
+        var all_details = [];
+        for (var site in addOn1)
+          all_details = all_details.concat(addOn1[site].detail);
+        outputTeenDetailsTable(all_details);
+
+        mapLayer.setData(siteData, {
+          lnglat: function (obj) {
+            return [obj.value.lng, obj.value.lat];
+          }
+        });
+        var max_r_data = d3.max(Object.values(data));
+        var infoWin;
+
+        mapLayer.on('click', function (ev) {
+          if (!infoWin) {
+            infoWin = new AMap.InfoWindow();
+          }
+          var type = ev.type;
+          var rawData = ev.rawData;
+          var originalEvent = ev.originalEvent;
+          var lnglat = ev.lnglat;
+          // console.log('事件类型 ' + type);
+          // console.log('原始数据 ' + JSON.stringify(rawData));
+          // console.log('鼠标事件 ' + originalEvent);
+
+          infoWin.setContent(rawData.title + '<br/>' + rawData.lng + ", " + rawData.lat);
+          infoWin.open(map1.getMap(), new AMap.LngLat(rawData.lng, rawData.lat));
+          onClickSite(rawData.site_id);
+        });
+
+        var fillColorSet = ["#A0CCD6", "#D46A6A", "#D49F6A"];
+
+        mapLayer.setOptions({
+          style: {
+            radius: function (obj) {
+              return data[obj.value.site_id] / max_r_data * 30;
+            },
+            fill: function (obj) {
+              return fillColorSet[getLevel(obj.value.site_id)];
+            },
+            opacity: 0.6,
+            lineWidth: 1,
+            stroke: '#eee'
+          }
+        });
+
+        mapLayer.render();
       });
-      var max_r_data = d3.max(Object.values(data));
-      var infoWin;
-
-      layer.on('click', function (ev) {
-        if (!infoWin) {
-          infoWin = new AMap.InfoWindow();
-        }
-        var type = ev.type;
-        var rawData = ev.rawData;
-        var originalEvent = ev.originalEvent;
-        var lnglat = ev.lnglat;
-        // console.log('事件类型 ' + type);
-        // console.log('原始数据 ' + JSON.stringify(rawData));
-        // console.log('鼠标事件 ' + originalEvent);
-
-        infoWin.setContent(rawData.title + '<br/>' + rawData.lng + ", " + rawData.lat);
-        infoWin.open(map1.getMap(), new AMap.LngLat(rawData.lng, rawData.lat));
-        paintGraph(rawData.site_id);
-      });
-
-      layer.setOptions({
-        style: {
-          radius: function (obj) {
-            return data[obj.value.site_id] / max_r_data * 30;
-          },
-          fill: '#6baed6',
-          opacity: 0.6,
-          lineWidth: 1,
-          stroke: '#eee'
-        }
-      });
-
-      layer.render();
     });
 }
 
@@ -152,17 +188,17 @@ function paintPunchCard() {
 
 function paintStack1() {
   var pad = 20, left_pad = 50;
-  var width = stack1Selection.width() - left_pad,
-    height = stack1Selection.height() - pad;
-  var x = d3.scaleBand().domain([0, 1, 2, 3, 4, 5]).rangeRound([0, width]);
-  var y = d3.scaleLinear().range([height, 0]);
+  var w = stack1Selection.width(),
+    h = stack1Selection.height();
+  var x = d3.scaleBand().domain([0, 1, 2, 3, 4, 5]).rangeRound([left_pad, w - pad]);
+  var y = d3.scaleLinear().range([h - pad * 2, pad]);
   var xAxis = d3.axisBottom(x)
     .tickFormat(function (d) { return ["-18", "19-25", "26-35", "36-45", "46-60", "61-"][d]; });
   var yAxis = d3.axisLeft(y).ticks(10);
   var svg = d3.select("#stack1").append("svg")
     .attr("width", stack1Selection.width())
     .attr("height", stack1Selection.height())
-    .append("g").attr("transform", "translate(" + left_pad + ",0)");
+    .append("g");
 
   d3.json("/aggregate1/?age=g").then(function (data) {
     data = data["data"];
@@ -174,7 +210,7 @@ function paintStack1() {
 
     svg.append("g")
       .attr("class", "x axis")
-      .attr("transform", "translate(0," + height + ")")
+      .attr("transform", "translate(0, " + (h - pad * 2) + ")")
       .call(xAxis)
       .selectAll("text")
       .style("text-anchor", "end")
@@ -184,13 +220,8 @@ function paintStack1() {
 
     svg.append("g")
       .attr("class", "y axis")
-      .call(yAxis)
-      .append("text")
-      .attr("transform", "rotate(-90)")
-      .attr("y", 6)
-      .attr("dy", ".71em")
-      .style("text-anchor", "end")
-      .text("Value ($)");
+      .attr("transform", "translate(" + left_pad + ", 0)")
+      .call(yAxis);
 
     svg.selectAll("bar")
       .data(data)
@@ -204,7 +235,7 @@ function paintStack1() {
         return y(d[1]);
       })
       .attr("height", function (d) {
-        return height - y(d[1]);
+        return h - pad * 2 - y(d[1]);
       });
 
   });
@@ -235,11 +266,15 @@ function paintGraph(site) {
   var node_group = svg.append("g")
     .attr("class", "nodes");
   var max_rel = 1;
+  var min_rel = 0;
+  var widthScale = d3.scaleLinear().range([1, 5]);
 
   var url = "/relation/";
   if (site) url += "?site=" + site;
   d3.json(url).then(function (data) {
     max_rel = d3.max(data["link"], function (obj) { return obj.relevance; });
+    min_rel = Math.max(d3.min(data["link"], function (obj) { return obj.relevance; }) - 1, 0);
+    widthScale.domain([min_rel, max_rel]);
     var node = node_group
       .selectAll("circle")
       .data(data["node"])
@@ -282,7 +317,7 @@ function paintGraph(site) {
         return d.target.y;
       })
       .attr("stroke-width", function (d) {
-        return d.relevance / max_rel * 5;
+        return widthScale(d.relevance);
       })
       .attr("stroke", function (d) {
         return d.birthplace > 0 ? "#F9A602" : "#888";
@@ -315,13 +350,20 @@ function reset() {
   paintGraph();
 }
 
+function onClickSite(site) {
+  paintGraph(site);
+  if (siteTeenData.hasOwnProperty(site))
+    outputTeenDetailsTable(siteTeenData[site].detail);
+}
+
 var mapSelection = $("#map"),
   add1Selection = $("#add1"),
   punchcard1Section = $("#punchcard1"),
-  stack1Selection = $("#stack1");
-link1Selection = $("#link1");
-var siteData, siteSize;
-var map1;
+  stack1Selection = $("#stack1"),
+  link1Selection = $("#link1"),
+  tableBodySelection = $("#teen-table-body");
+var siteData, siteTeenData;
+var map1, mapLayer;
 var graph1Simulation;
 adjustSize();
 d3.json("/site/")

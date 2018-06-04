@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.cache import cache_page
 
-from main.models import RecordAggregation1, Site, SuspectRelation, SuspectRelation2
+from main.models import RecordAggregation1, Site, SuspectRelation, SuspectRelation2, PossibleTeens
 
 
 def get_sites():
@@ -74,4 +74,22 @@ def get_relation_view(request):
     ret["node"] = []
     for person in person_set:
         ret["node"].append({"id": person})
+    return JsonResponse(ret)
+
+
+def get_teens_view(request):
+    ret = {}
+    for pt in PossibleTeens.objects.all():
+        if pt.site_id not in ret:
+            ret[pt.site_id] = {"level1": 0, "level2": 0, "detail": []}
+        ret[pt.site_id]["detail"].append({"person_id": pt.person_id,
+                                          "age": pt.age,
+                                          "customer_name": pt.customer_name,
+                                          "level": pt.level,
+                                          "online_time": "%s" % pt.online_time,
+                                          "offline_time": "%s" % pt.offline_time})
+        if pt.level == 1:
+            ret[pt.site_id]["level1"] += 1
+        else:
+            ret[pt.site_id]["level2"] += 1
     return JsonResponse(ret)

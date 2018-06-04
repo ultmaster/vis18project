@@ -7,7 +7,7 @@
 }
 
 .seg {
-  margin-bottom: 2em;
+  margin-bottom: 3em !important;
   overflow: visible;
 }
 
@@ -17,4 +17,8 @@
 
 .seg svg {
   overflow: visible;
+}
+
+#teen-detail {
+  height: 300px;
 }
