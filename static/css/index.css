@@ -1,3 +1,17 @@
+.demo.main {
+  margin-left: 30px;
+  margin-right: 30px;
+}
+
+.column {
+  display: flex !important;
+  flex-direction: column;
+}
+
+.fill-rest {
+  flex: 1;
+}
+
 .head {
   margin: 3em 0;
 }
@@ -7,7 +21,7 @@
 }
 
 .seg {
-  margin-bottom: 3em !important;
+  margin-bottom: 0em !important;
   overflow: visible;
 }
 

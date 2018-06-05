@@ -1,8 +1,6 @@
 function adjustSize() {
-  mapSelection.height(mapSelection.width() * .6);
+  group1.height(group1.width() * .4);
   add1Selection.height(add1Selection.width() * .3);
-  stack1Selection.height(add1Selection.height());
-  link1Selection.height(link1Selection.width() * .5);
 }
 
 function initMap() {
@@ -361,7 +359,8 @@ var mapSelection = $("#map"),
   punchcard1Section = $("#punchcard1"),
   stack1Selection = $("#stack1"),
   link1Selection = $("#link1"),
-  tableBodySelection = $("#teen-table-body");
+  tableBodySelection = $("#teen-table-body"),
+  group1 = $("#group1");
 var siteData, siteTeenData;
 var map1, mapLayer;
 var graph1Simulation;

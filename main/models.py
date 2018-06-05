@@ -32,6 +32,34 @@ class RecordAggregation1(models.Model):
     count = models.PositiveIntegerField()
 
 
+class RecordAggregation2(models.Model):
+    site = models.ForeignKey(Site)
+    weekday = models.PositiveIntegerField(db_index=True)
+    hour = models.PositiveIntegerField(db_index=True)
+    migration = models.BooleanField(db_index=True)
+    count = models.PositiveIntegerField()
+    total_length = models.FloatField()
+
+    class Meta:
+        unique_together = ("site", "weekday", "hour", "migration")
+
+
+class RecordAggregation3(models.Model):
+    site = models.ForeignKey(Site)
+    age = models.PositiveIntegerField(db_index=True)
+    length = models.PositiveIntegerField(db_index=True, choices=[(1, '-1'),
+                                                                 (2, '1-2'),
+                                                                 (3, '2-3'),
+                                                                 (5, '3-5'),
+                                                                 (8, '5-8'),
+                                                                 (13, '8-')])
+    migration = models.BooleanField(db_index=True)
+    count = models.PositiveIntegerField()
+
+    class Meta:
+        unique_together = ("site", "age", "length", "migration")
+
+
 class PossibleTeens(models.Model):
     id = models.IntegerField(primary_key=True)
     site = models.ForeignKey(Site)
