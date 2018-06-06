@@ -31,6 +31,8 @@ def run(*args):
         cage = Counter()
         for idx, rec in enumerate(Record.objects.all()):
             total_hours = (rec.offline_time - rec.online_time).total_seconds() / 3600
+            if total_hours > 24:
+                continue
             mig = is_migrator(rec.area_id)
             for time in truncate_minute_and_second(rec.online_time, rec.offline_time):
                 ctime[(rec.site_id, time.weekday(), time.hour, mig)] += 1

@@ -41,7 +41,7 @@ function outputTeenDetailsTable(data) {
 }
 
 function paintMap() {
-  d3.json("/aggregate1/")
+  d3.json("/aggregate2/")
     .then(function (data) {
 
       d3.json("/teen/").then(function (addOn1) {
@@ -105,7 +105,7 @@ function paintMap() {
 }
 
 function paintPunchCard() {
-  d3.json("/aggregate1/?time=g")
+  d3.json("/aggregate2/?time=g")
     .then(function (data) {
       var punchcard_data = data["data"];
       var w = punchcard1Section.width(),
@@ -153,17 +153,18 @@ function paintPunchCard() {
           return h / 2 - 5;
         });
 
-      var max_r = d3.max(punchcard_data.map(
-        function (d) {
-          return d.count__sum;
-        })),
-        r = d3.scaleLinear()
-          .domain([0, d3.max(punchcard_data, function (d) {
-            return d.count__sum;
-          })])
-          .range([0, 12]);
+      var r = d3.scaleLinear()
+        .domain([0, d3.max(punchcard_data, function (d) {
+          return d.count_sum;
+        })])
+        .range([0, 12]);
 
       svg.selectAll(".loading").remove();
+
+      var circleColor = d3.scaleSequential(d3.interpolateGnBu)
+        .domain([0, d3.max(punchcard_data, function (d) {
+          return d.length;
+        })]);
 
       svg.selectAll("circle")
         .data(punchcard_data)
@@ -176,10 +177,13 @@ function paintPunchCard() {
         .attr("cy", function (d) {
           return y(d.weekday);
         })
+        .attr("fill", function (d) {
+          return circleColor(d.length);
+        })
         .transition()
         .duration(800)
         .attr("r", function (d) {
-          return r(d.count__sum);
+          return r(d.count_sum);
         });
     });
 }
@@ -188,27 +192,43 @@ function paintStack1() {
   var pad = 20, left_pad = 50;
   var w = stack1Selection.width(),
     h = stack1Selection.height();
-  var x = d3.scaleBand().domain([0, 1, 2, 3, 4, 5]).rangeRound([left_pad, w - pad]);
-  var y = d3.scaleLinear().range([h - pad * 2, pad]);
-  var xAxis = d3.axisBottom(x)
-    .tickFormat(function (d) { return ["-18", "19-25", "26-35", "36-45", "46-60", "61-"][d]; });
-  var yAxis = d3.axisLeft(y).ticks(10);
   var svg = d3.select("#stack1").append("svg")
     .attr("width", stack1Selection.width())
     .attr("height", stack1Selection.height())
     .append("g");
 
-  d3.json("/aggregate1/?age=g").then(function (data) {
+  d3.json("/aggregate2/?age=g").then(function (data) {
     data = data["data"];
     console.log(data);
 
-    y.domain([0, d3.max(data, function (d) {
-      return d[1];
+    var color = d3.scaleSequential(d3.interpolateGnBu).domain([-1, 5]);
+    var keyDomain = ["1", "2", "3", "5", "8", "13"];
+    var x = d3.scaleLinear()
+      .domain(d3.extent(data, function (obj) { return obj.age; }))
+      .range([left_pad, w - pad]);
+    var y = d3.scaleLinear().range([h - pad, pad]);
+    var xAxis = d3.axisBottom(x).ticks(10);
+      // .tickFormat(function (d) { return d.age });
+    var yAxis = d3.axisLeft(y).ticks(10);
+    var area = d3.area()
+      .x(function(d, i) { return x(i + x.domain()[0]); })
+      .y0(function(d) { return y(d[0]); })
+      .y1(function(d) { return y(d[1]); })
+      .curve(d3.curveBasis);
+    var stack = d3.stack()
+      .keys(keyDomain)
+      .value(function (obj, key) { return obj.detail[key]; });
+    var browser = stack(data);
+
+    console.log(browser);
+
+    y.domain([0, d3.max(data, function(d) {
+      return d3.sum(d3.values(d.detail));
     })]);
 
     svg.append("g")
       .attr("class", "x axis")
-      .attr("transform", "translate(0, " + (h - pad * 2) + ")")
+      .attr("transform", "translate(0, " + (h - pad) + ")")
       .call(xAxis)
       .selectAll("text")
       .style("text-anchor", "end")
@@ -221,21 +241,12 @@ function paintStack1() {
       .attr("transform", "translate(" + left_pad + ", 0)")
       .call(yAxis);
 
-    svg.selectAll("bar")
-      .data(data)
-      .enter().append("rect")
-      .style("fill", "steelblue")
-      .attr("x", function (d) {
-        return x(d[0]);
-      })
-      .attr("width", x.bandwidth())
-      .attr("y", function (d) {
-        return y(d[1]);
-      })
-      .attr("height", function (d) {
-        return h - pad * 2 - y(d[1]);
-      });
-
+    svg.append("g").selectAll("path")
+      .data(browser)
+      .enter().append("path")
+      .attr("class", "area")
+      .style("fill", function(d) { return color(keyDomain.indexOf(d.key)); })
+      .attr("d", area);
   });
 }
 

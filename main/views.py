@@ -2,12 +2,14 @@ from collections import Counter
 
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
-from django.db.models import Sum
+from django.db.models import Sum, FloatField
+from django.db.models.functions import Cast
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.cache import cache_page
 
-from main.models import RecordAggregation1, Site, SuspectRelation, SuspectRelation2, PossibleTeens
+from main.models import RecordAggregation1, Site, SuspectRelation, SuspectRelation2, PossibleTeens, RecordAggregation2, \
+    RecordAggregation3
 
 
 def get_sites():
@@ -47,7 +49,30 @@ def aggregate1_view(request):
         return JsonResponse(ret)
 
 
-# MAX_REL_QUERY_LENGTH = 10000
+def aggregate2_view(request):
+    if request.GET.get("time") == "g":
+        data = RecordAggregation2.objects.all().values("weekday", "hour").annotate(count_sum=Sum("count"), length=Sum("total_length") / Cast(Sum("count"), FloatField()))
+        return JsonResponse({"data": list(data)})
+    elif request.GET.get("age") == "g":
+        data = RecordAggregation3.objects.all().values("age", "length").annotate(count=Sum("count"))
+        ret = {}
+        for d in data:
+            ret.setdefault(d["age"], {})
+            ret[d["age"]][d["length"]] = d["count"]
+        r2 = []
+        age_min, age_max = min(ret.keys()), min(max(ret.keys()), 80)
+        for key in range(age_min, age_max + 1):
+            val = ret.get(key, {})
+            for k in [1, 2, 3, 5, 8, 13]:
+                val.setdefault(k, 0)
+            r2.append({"age": key, "detail": val})
+        return JsonResponse({"data": r2})
+    else:
+        data = RecordAggregation2.objects.all().values("site_id").annotate(Sum("count"))
+        ret = {}
+        for item in data:
+            ret[item["site_id"]] = item["count__sum"]
+        return JsonResponse(ret)
 
 
 def get_relation_view(request):
