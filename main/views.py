@@ -9,7 +9,7 @@ from django.shortcuts import render
 from django.views.decorators.cache import cache_page
 
 from main.models import RecordAggregation1, Site, SuspectRelation, SuspectRelation2, PossibleTeens, RecordAggregation2, \
-    RecordAggregation3
+    RecordAggregation3, Record
 
 
 def get_sites():
@@ -118,3 +118,19 @@ def get_teens_view(request):
         else:
             ret[pt.site_id]["level2"] += 1
     return JsonResponse(ret)
+
+
+def get_timeline(request):
+    ids = list(filter(lambda x: x, request.GET.get('id', '').split(',')))
+    recs = Record.objects.filter(person_id__in=ids).only('id', 'site_id', 'online_time', 'offline_time')\
+        .order_by("person_id", "online_time")
+    ret = {id: [] for id in ids}
+    for r in recs:
+        ret[r.person_id].append({"person_id": r.person_id,
+                                 "site_id": r.site_id,
+                                 "online_time": str(r.online_time),
+                                 "offline_time": str(r.offline_time)})
+    r2 = []
+    for r in ret:
+        r2.append({"key": r, "values": ret[r]})
+    return JsonResponse({"data": r2})

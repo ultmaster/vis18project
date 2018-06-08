@@ -4,7 +4,8 @@ from django.conf.urls import url
 from django.contrib import admin
 from django.views.static import serve
 
-from main.views import home_view, aggregate1_view, aggregate2_view, get_sites_view, get_relation_view, get_teens_view
+from main.views import home_view, aggregate1_view, aggregate2_view, get_sites_view, get_relation_view, get_teens_view, \
+    get_timeline
 
 from django.conf import settings
 
@@ -18,5 +19,6 @@ urlpatterns = [
     url(r'^aggregate2/$', aggregate2_view),
     url(r'^relation/$', get_relation_view),
     url(r'^teen/$', get_teens_view),
+    url(r'^timeline/$', get_timeline),
     url(r'^static/(?P<path>.*)$', serve, name='static', kwargs={'document_root': STATIC_DIR}),
 ]

@@ -251,7 +251,7 @@ function paintStack1() {
 }
 
 function paintGraph(site) {
-  var width = link1Selection.width(),
+    var width = link1Selection.width(),
     height = link1Selection.height(),
     radius = 5;
 
@@ -269,11 +269,12 @@ function paintGraph(site) {
 
   var svg = d3.select("#link1").append("svg")
     .attr("width", width)
-    .attr("height", height);
+    .attr("height", height)
+    .attr("opacity", 0.6);
   var link_group = svg.append("g")
-    .attr("class", "links");
+    .attr("class", "link");
   var node_group = svg.append("g")
-    .attr("class", "nodes");
+    .attr("class", "node");
   var max_rel = 1;
   var min_rel = 0;
   var widthScale = d3.scaleLinear().range([1, 5]);
@@ -281,27 +282,64 @@ function paintGraph(site) {
   var url = "/relation/";
   if (site) url += "?site=" + site;
   d3.json(url).then(function (data) {
-    max_rel = d3.max(data["link"], function (obj) { return obj.relevance; });
-    min_rel = Math.max(d3.min(data["link"], function (obj) { return obj.relevance; }) - 1, 0);
+    max_rel = d3.max(data.link, function (obj) { return obj.relevance; });
+    min_rel = Math.max(d3.min(data.link, function (obj) { return obj.relevance; }) - 1, 0);
     widthScale.domain([min_rel, max_rel]);
-    var node = node_group
+    node_group
       .selectAll("circle")
-      .data(data["node"])
+      .data(data.node)
       .enter().append("circle")
-      .attr("r", 5)
-      .attr("fill", "#000");
+      .on("click", function (d) {
+        d3.select(this).classed("selected", d.selected = !d.selected);
 
-    var link = link_group.selectAll("line").data(data["link"]);
+        var active_node = [];
+        node_group.selectAll("circle").filter(function (d) {
+          return d.selected;
+        }).each(function (d) { active_node.push(d.id); });
+        console.log(active_node);
+        timeline.paint(active_node);
+      });
+
+    var link = link_group.selectAll("line").data(data.link);
     link.exit().remove();
     link.enter().append("line");
 
     graph1Simulation
-      .nodes(data["node"])
+      .nodes(data.node)
       .on("tick", ticked);
 
     graph1Simulation
       .force("link")
-      .links(data["link"]);
+      .links(data.link);
+
+    graph1Simulation.alpha(0.1).restart();
+
+    function ticked() {
+      link_group.selectAll("line").attr("x1", function (d) {
+        return d.source.x;
+      }).attr("y1", function (d) {
+        return d.source.y;
+      }).attr("x2", function (d) {
+        return d.target.x;
+      }).attr("y2", function (d) {
+        return d.target.y;
+      }).attr("stroke-width", function (d) {
+        return widthScale(d.relevance);
+      }).classed("strong", function (d) {
+        return d.birthplace > 0;
+      });
+
+      node_group.selectAll("circle")
+        .attr("cx", function (d) {
+          var err = hashID(d.id, 50);
+          return d.x = Math.max(radius + err, Math.min(width - radius - err, d.x));
+        }).attr("cy", function (d) {
+          var err = hashID(d.id, 50);
+          return d.y = Math.max(radius + err, Math.min(height - radius - err, d.y));
+        }).attr("r", function (d) {
+          return radius;
+        });
+    }
   });
 
   function hashID(s, mod) {
@@ -310,46 +348,98 @@ function paintGraph(site) {
       r = (r * 123 + s.charCodeAt(i)) % mod;
     return r;
   }
+}
 
-  function ticked() {
-    link_group.selectAll("line")
-      .attr("x1", function (d) {
-        return d.source.x;
-      })
-      .attr("y1", function (d) {
-        return d.source.y;
-      })
-      .attr("x2", function (d) {
-        return d.target.x;
-      })
-      .attr("y2", function (d) {
-        return d.target.y;
-      })
-      .attr("stroke-width", function (d) {
-        return widthScale(d.relevance);
-      })
-      .attr("stroke", function (d) {
-        return d.birthplace > 0 ? "#F9A602" : "#888";
+function Timeline() {
+  this.width = timeline1Selection.width();
+  this.height = timeline1Selection.height() - 20;
+  this.svg = d3.select("#timeline1").append("svg").attr("width", this.width).attr("height", this.height);
+  this.parser = d3.isoParse;
+
+  this.paint = function (id_list) {
+    var svg = this.svg, width = this.width, height = this.height, parser = this.parser;
+    d3.json("/timeline/?id=" + (id_list ? id_list.join(",") : ""))
+    .then(function (data) {
+      svg.selectAll("*").remove();
+      data = data["data"];
+
+      var minTime = d3.min(data, function (d) {
+        return d3.min(d.values, function (e) {
+          return parser(e.online_time);
+        });
+      });
+      var maxTime = d3.max(data, function (d) {
+        return d3.max(d.values, function (e) {
+          return parser(e.offline_time);
+        })
       });
 
-    node_group.selectAll("circle")
-      .attr("cx", function (d) {
-        var err = hashID(d.id, 50);
-        return d.x = Math.max(radius + err, Math.min(width - radius - err, d.x));
-      })
-      .attr("cy", function (d) {
-        var err = hashID(d.id, 50);
-        return d.y = Math.max(radius + err, Math.min(height - radius - err, d.y));
-      })
-      .attr("fill", function (d) {
-        return "black";
-      })
-      .attr("r", function (d) {
-        return radius;
-      });
+      var xScale = d3.scaleTime()
+        .domain([minTime, maxTime])
+        .range([0, width]);
+      var yScale = d3.scaleBand().domain(data.map(function (d) { return d.key; }))
+        .range([0, height]).paddingInner(0.05);
+      var trans;
 
-    graph1Simulation.alpha(0.1).restart();
+      var spanX = function (d) { return xScale(parser(d.online_time)); };
+      var spanW = function (d) {
+        var w = xScale(parser(d.offline_time)) - xScale(parser(d.online_time));
+        if (trans)
+          w = Math.max(w, 2 / trans.k);
+        return w;
+      };
+
+      var vis = svg.append("g");
+
+      vis.selectAll("g")
+        .data(data)
+        .enter()
+        .append("g")
+        .each(function (d) {
+          var g = d3.select(this);
+          g.selectAll("rect").data(d.values)
+            .enter()
+            .append("rect")
+            .attr("x", spanX)
+            .attr("y", function (d) { return yScale(d.person_id); })
+            .attr("width", spanW)
+            .attr("height", yScale.bandwidth())
+            .attr("fill", "#000");
+        });
+
+      var xAxis = d3.axisBottom(xScale)
+        .ticks(width / 100);
+
+      var globalX = svg.append("g")
+        .attr("transform", "translate(0," + height + ")")
+        .attr("class", "axis")
+        .call(xAxis);
+
+      var catchAll = svg.append("g")
+        .attr("class", "zoom")
+        .append("rect")
+        .attr("fill", "none")
+        .attr("width", width)
+        .attr("height", height);
+
+      catchAll.call(d3.zoom()
+        .scaleExtent([0.1, 10])
+        .on("zoom", function () {
+          trans = d3.event.transform;
+          globalX.call(xAxis.scale(trans.rescaleX(xScale)));
+          vis.attr("transform", "translate(" + trans.x + ",0) scale(" + trans.k  + ",1)");
+          vis.selectAll("rect").attr("width", spanW);
+        })
+      );
+    });
   }
+}
+
+function paintTimeline() {
+  var width = timeline1Selection.width(), height = timeline1Selection.height() - 20;
+  var svg = d3.select("#timeline1").append("svg").attr("width", width).attr("height", height);
+  var parser = d3.isoParse;
+
 }
 
 function reset() {
@@ -357,6 +447,8 @@ function reset() {
   paintPunchCard();
   paintStack1();
   paintGraph();
+  timeline = new Timeline();
+  timeline.paint();
 }
 
 function onClickSite(site) {
@@ -370,11 +462,13 @@ var mapSelection = $("#map"),
   punchcard1Section = $("#punchcard1"),
   stack1Selection = $("#stack1"),
   link1Selection = $("#link1"),
+  timeline1Selection = $("#timeline1"),
   tableBodySelection = $("#teen-table-body"),
   group1 = $("#group1");
 var siteData, siteTeenData;
 var map1, mapLayer;
 var graph1Simulation;
+var timeline;
 adjustSize();
 d3.json("/site/")
   .then(function (data) {

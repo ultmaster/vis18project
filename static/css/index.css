@@ -21,7 +21,7 @@
 }
 
 .seg {
-  margin-bottom: 0em !important;
+  margin-bottom: 0 !important;
   overflow: visible;
 }
 
@@ -35,4 +35,37 @@
 
 #teen-detail {
   height: 300px;
+}
+
+.node {
+  fill: red;
+  stroke: #fff;
+  stroke-width: 1.5px;
+}
+
+.node .selected {
+  stroke: black;
+}
+
+.link {
+  stroke: #999;
+}
+
+.link .strong {
+  stroke: #BF9056;
+}
+
+.brush .extent {
+  fill-opacity: .1;
+  stroke: #fff;
+  shape-rendering: crispEdges;
+}
+
+.zoom {
+  cursor: move;
+  position: absolute;
+  top: 0;
+  left: 0;
+  fill: none;
+  pointer-events: all;
 }
