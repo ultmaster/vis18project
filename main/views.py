@@ -58,13 +58,6 @@ def aggregate2_view(request):
         data = RecordAggregation2.objects.filter(q).values("weekday", "hour").annotate(count_sum=Sum("count"), length=Sum("total_length") / Cast(Sum("count"), FloatField()))
         return JsonResponse({"data": list(data)})
     elif request.GET.get("age") == "g":
-        # q = Q()
-        # if "weekday" in request.GET:
-        #     w1, w2 = map(int, request.GET["weekday"].split(","))
-        #     q &= Q(weekday__gte=w1, weekday__lte=w2)
-        # if "hour" in request.GET:
-        #     h1, h2 = map(int, request.GET["hour"].split(","))
-        #     q &= Q(hour__gte=h1, hour__lte=h2)
         data = RecordAggregation3.objects.filter(q).values("age", "length").annotate(count=Sum("count"))
         ret = {}
         for d in data:
@@ -79,7 +72,23 @@ def aggregate2_view(request):
             r2.append({"age": key, "detail": val})
         return JsonResponse({"data": r2})
     else:
-        data = RecordAggregation2.objects.all().values("site_id").annotate(Sum("count"))
+        if request.GET.get("time") == "s":
+            q = Q()
+            if "weekday" in request.GET:
+                w1, w2 = map(int, request.GET["weekday"].split(","))
+                q &= Q(weekday__gte=w1, weekday__lte=w2)
+            if "hour" in request.GET:
+                h1, h2 = map(int, request.GET["hour"].split(","))
+                q &= Q(hour__gte=h1, hour__lte=h2)
+            data = RecordAggregation2.objects.filter(q).values("site_id").annotate(Sum("count"))
+        if request.GET.get("age") == "s":
+            q = Q()
+            if "range" in request.GET:
+                a1, a2 = map(int, request.GET["range"].split(","))
+                q &= Q(age__gte=a1, age__lte=a2)
+            data = RecordAggregation3.objects.filter(q).values("site_id").annotate(Sum("count"))
+        else:
+            data = RecordAggregation2.objects.all().values("site_id").annotate(Sum("count"))
         ret = {}
         for item in data:
             ret[item["site_id"]] = item["count__sum"]

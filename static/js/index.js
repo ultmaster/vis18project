@@ -1,5 +1,6 @@
 function adjustSize() {
   group1.height(group1.width() * .4);
+  group2.height(group2.width() * .3);
   add1Selection.height(add1Selection.width() * .3);
 }
 
@@ -41,67 +42,78 @@ function outputTeenDetailsTable(data) {
 }
 
 function paintMap() {
-  d3.json("/aggregate2/")
-    .then(function (data) {
+  var url = "/aggregate2/";
+  if (punchcard.validRangeQuery())
+    url += "?time=s&" + punchcard.validRangeQuery();
+  else if (stack.validRangeQuery())
+    url += "?age=s&" + stack.validRangeQuery();
 
-      d3.json("/teen/").then(function (addOn1) {
-        function getLevel(siteId) {
-          if (!addOn1.hasOwnProperty(siteId))
-            return 0;
-          return addOn1[siteId].level1 > 0 ? 1 : 2;
+  console.log(url);
+
+  d3.json(url).then(function (data) {
+    d3.json("/teen/").then(function (addOn1) {
+      function getLevel(siteId) {
+        if (!addOn1.hasOwnProperty(siteId))
+          return 0;
+        return addOn1[siteId].level1 > 0 ? 1 : 2;
+      }
+
+      if (!siteTeenData)
+        siteTeenData = addOn1;
+      var all_details = [];
+      for (var site in addOn1)
+        all_details = all_details.concat(addOn1[site].detail);
+      outputTeenDetailsTable(all_details);
+
+      mapLayer.setData(siteData, {
+        lnglat: function (obj) {
+          return [obj.value.lng, obj.value.lat];
         }
-
-        if (!siteTeenData)
-          siteTeenData = addOn1;
-        var all_details = [];
-        for (var site in addOn1)
-          all_details = all_details.concat(addOn1[site].detail);
-        outputTeenDetailsTable(all_details);
-
-        mapLayer.setData(siteData, {
-          lnglat: function (obj) {
-            return [obj.value.lng, obj.value.lat];
-          }
-        });
-        var max_r_data = d3.max(Object.values(data));
-        var infoWin;
-
-        mapLayer.on('click', function (ev) {
-          if (!infoWin) {
-            infoWin = new AMap.InfoWindow();
-          }
-          var type = ev.type;
-          var rawData = ev.rawData;
-          var originalEvent = ev.originalEvent;
-          var lnglat = ev.lnglat;
-          // console.log('事件类型 ' + type);
-          // console.log('原始数据 ' + JSON.stringify(rawData));
-          // console.log('鼠标事件 ' + originalEvent);
-
-          infoWin.setContent(rawData.title + '<br/>' + rawData.lng + ", " + rawData.lat);
-          infoWin.open(map1.getMap(), new AMap.LngLat(rawData.lng, rawData.lat));
-          onClickSite(rawData.site_id);
-        });
-
-        var fillColorSet = ["#A0CCD6", "#D46A6A", "#D49F6A"];
-
-        mapLayer.setOptions({
-          style: {
-            radius: function (obj) {
-              return data[obj.value.site_id] / max_r_data * 30;
-            },
-            fill: function (obj) {
-              return fillColorSet[getLevel(obj.value.site_id)];
-            },
-            opacity: 0.6,
-            lineWidth: 1,
-            stroke: '#eee'
-          }
-        });
-
-        mapLayer.render();
       });
+      var max_r_data = d3.max(Object.values(data));
+      var infoWin;
+
+      mapLayer.on('click', function (ev) {
+        console.log(ev);
+        if (!infoWin) {
+          infoWin = new AMap.InfoWindow();
+        }
+        var type = ev.type;
+        var rawData = ev.rawData;
+        var originalEvent = ev.originalEvent;
+        var lnglat = ev.lnglat;
+        // console.log('事件类型 ' + type);
+        // console.log('原始数据 ' + JSON.stringify(rawData));
+        // console.log('鼠标事件 ' + originalEvent);
+
+        infoWin.setContent(rawData.title + '<br/>' + rawData.lng + ", " + rawData.lat);
+        infoWin.open(map1.getMap(), new AMap.LngLat(rawData.lng, rawData.lat));
+        onClickSite(rawData.site_id);
+      });
+
+      map1.on('click', function (e) {
+        console.log(e);
+      })
+
+      var fillColorSet = ["#A0CCD6", "#D46A6A", "#D49F6A"];
+
+      mapLayer.setOptions({
+        style: {
+          radius: function (obj) {
+            return data[obj.value.site_id] / max_r_data * 30;
+          },
+          fill: function (obj) {
+            return fillColorSet[getLevel(obj.value.site_id)];
+          },
+          opacity: 0.6,
+          lineWidth: 1,
+          stroke: '#eee'
+        }
+      });
+
+      mapLayer.render();
     });
+  });
 }
 
 function PunchCard() {
@@ -123,7 +135,9 @@ function PunchCard() {
   };
 
   this.paint = function (site) {
-    var svg = this.svg, w = this.width, h = this.height;
+    this.svg.selectAll("g").remove();
+    var svg = this.svg.append("g"), w = this.width, h = this.height;
+    var outerThis = this;
     svg.selectAll("*").remove();
 
     var url = "/aggregate2/?time=g";
@@ -227,15 +241,27 @@ function PunchCard() {
         punchcard.weekdayRange = [Math.ceil(y0), Math.floor(y1)];
         punchcard.hourRange = [Math.ceil(x0), Math.floor(x1)];
 
-        stack.paint();
+        stack.clearBrush();
+
+        onTimeChange();
       }
 
-      svg.append("g")
+      outerThis.brush = d3.brush()
+        .extent([[0, 0], [w, h]])
+        .on("end", brushended);
+
+      outerThis.brushArea = svg.append("g")
         .attr("class", "brush")
-        .call(d3.brush()
-          .extent([[0, 0], [w, h]])
-          .on("end", brushended));
+        .call(outerThis.brush);
     });
+  };
+
+  this.clearBrush = function () {
+    if (!this.brush) return;
+    this.brushArea.call(this.brush.move, null);
+
+    this.weekdayRange = null;
+    this.hourRange = null;
   }
 }
 
@@ -243,11 +269,20 @@ function Stack() {
   this.width = stack1Selection.width();
   this.height = stack1Selection.height();
   this.svg = d3.select("#stack1").append("svg").attr("width", this.width).attr("height", this.height);
+  this.ageRange = null;
+
+  this.validRangeQuery = function () {
+    if (!this.ageRange) return "";
+    if (this.ageRange[0] > this.ageRange[1])
+      return "";
+    return "range=" + Math.floor(this.ageRange[0]) + "," + Math.ceil(this.ageRange[1]);
+  };
 
   this.paint = function (site) {
+    var outerThis = this;
     var pad = 20, left_pad = 50;
     var w = this.width, h = this.height;
-    this.svg.selectAll("*").remove();
+    this.svg.selectAll("g").remove();
     var svg = this.svg.append("g");
     var url = "/aggregate2/?age=g";
     if (site) url = url + "&site=" + site;
@@ -319,14 +354,28 @@ function Stack() {
         xrange[0] = Math.max(xrange[0], x.domain()[0]);
         xrange[1] = Math.min(xrange[1], x.domain()[1]);
         d3.select(this).transition().call(d3.event.target.move, xrange.map(x));
+        outerThis.ageRange = xrange;
+
+        punchcard.clearBrush();
+
+        onAgeChange();
       }
 
-      svg.append("g")
+      outerThis.brush = d3.brushX()
+        .extent([[0, pad], [w, h - pad]])
+        .on("end", brushended);
+
+      outerThis.brushArea = svg.append("g")
         .attr("class", "brush")
-        .call(d3.brushX()
-          .extent([[0, pad], [w, h - pad]])
-          .on("end", brushended));
+        .call(outerThis.brush);
     });
+  }
+
+  this.clearBrush = function () {
+    if (!this.brush) return;
+    this.brushArea.call(this.brush.move, null);
+
+    this.ageRange = null;
   }
 }
 
@@ -519,8 +568,6 @@ function Timeline() {
 }
 
 function reset() {
-  paintMap();
-
   punchcard = new PunchCard();
   stack = new Stack();
   timeline = new Timeline();
@@ -530,6 +577,8 @@ function reset() {
   stack.paint();
   timeline.paint();
   graph.paint();
+
+  paintMap();
 }
 
 function onClickSite(site) {
@@ -541,7 +590,11 @@ function onClickSite(site) {
 }
 
 function onTimeChange() {
-  stack.paint();
+  paintMap();
+}
+
+function onAgeChange() {
+  paintMap();
 }
 
 var mapSelection = $("#map"),
@@ -551,7 +604,8 @@ var mapSelection = $("#map"),
   link1Selection = $("#link1"),
   timeline1Selection = $("#timeline1"),
   tableBodySelection = $("#teen-table-body"),
-  group1 = $("#group1");
+  group1 = $("#group1"),
+  group2 = $("#group2");
 var siteData, siteTeenData;
 var map1, mapLayer;
 var timeline, punchcard;
