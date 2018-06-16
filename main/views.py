@@ -2,6 +2,7 @@ from collections import Counter
 
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
+from django.db.models import Q
 from django.db.models import Sum, FloatField
 from django.db.models.functions import Cast
 from django.http import JsonResponse
@@ -50,11 +51,21 @@ def aggregate1_view(request):
 
 
 def aggregate2_view(request):
+    q = Q()
+    if "site" in request.GET:
+        q &= Q(site_id=request.GET["site"])
     if request.GET.get("time") == "g":
-        data = RecordAggregation2.objects.all().values("weekday", "hour").annotate(count_sum=Sum("count"), length=Sum("total_length") / Cast(Sum("count"), FloatField()))
+        data = RecordAggregation2.objects.filter(q).values("weekday", "hour").annotate(count_sum=Sum("count"), length=Sum("total_length") / Cast(Sum("count"), FloatField()))
         return JsonResponse({"data": list(data)})
     elif request.GET.get("age") == "g":
-        data = RecordAggregation3.objects.all().values("age", "length").annotate(count=Sum("count"))
+        # q = Q()
+        # if "weekday" in request.GET:
+        #     w1, w2 = map(int, request.GET["weekday"].split(","))
+        #     q &= Q(weekday__gte=w1, weekday__lte=w2)
+        # if "hour" in request.GET:
+        #     h1, h2 = map(int, request.GET["hour"].split(","))
+        #     q &= Q(hour__gte=h1, hour__lte=h2)
+        data = RecordAggregation3.objects.filter(q).values("age", "length").annotate(count=Sum("count"))
         ret = {}
         for d in data:
             ret.setdefault(d["age"], {})

@@ -104,19 +104,34 @@ function paintMap() {
     });
 }
 
-function paintPunchCard() {
-  d3.json("/aggregate2/?time=g")
-    .then(function (data) {
-      var punchcard_data = data["data"];
-      var w = punchcard1Section.width(),
-        h = punchcard1Section.height(),
-        pad = 20,
-        left_pad = 100;
+function PunchCard() {
+  this.width = punchcard1Section.width();
+  this.height = punchcard1Section.height();
+  this.svg = d3.select("#punchcard1").append("svg").attr("width", this.width).attr("height", this.height);
+  this.weekdayRange = null;
+  this.hourRange = null;
 
-      var svg = d3.select("#punchcard1")
-        .append("svg")
-        .attr("width", w)
-        .attr("height", h);
+  this.validRangeQuery = function () {
+    if (!this.weekdayRange || !this.hourRange)
+      return "";
+    if (this.weekdayRange[0] > this.weekdayRange[1])
+      return "";
+    if (this.hourRange[0] > this.hourRange[1])
+      return "";
+    return "weekday=" + this.weekdayRange[0] + "," + this.weekdayRange[1] + "&" +
+        "hour=" + this.hourRange[0] + "," + this.hourRange[1];
+  };
+
+  this.paint = function (site) {
+    var svg = this.svg, w = this.width, h = this.height;
+    svg.selectAll("*").remove();
+
+    var url = "/aggregate2/?time=g";
+    if (site) url = url + "&site=" + site;
+
+    d3.json(url).then(function (data) {
+      var punchcard_data = data["data"];
+      var pad = 20, left_pad = 100;
 
       var x = d3.scaleLinear().domain([0, 23]).range([left_pad, w - pad]),
         y = d3.scaleLinear().domain([0, 6]).range([pad, h - pad * 2]);
@@ -185,169 +200,237 @@ function paintPunchCard() {
         .attr("r", function (d) {
           return r(d.count_sum);
         });
+
+      function goodRound(low, high, p) {
+        return Math.min(high + 1, Math.max(Math.round(p + 0.5), low)) - 0.5;
+      }
+
+      function brushended() {
+        if (!d3.event.sourceEvent) return;
+        if (!d3.event.selection) {
+          punchcard.weekdayRange = null;
+          punchcard.hourRange = null;
+          return;
+        }
+        var x0 = x.invert(d3.event.selection[0][0]),
+          x1 = x.invert(d3.event.selection[1][0]),
+          y0 = y.invert(d3.event.selection[0][1]),
+          y1 = y.invert(d3.event.selection[1][1]);
+        x0 = goodRound(0, 24, x0);
+        x1 = goodRound(0, 24, x1);
+        y0 = goodRound(0, 6, y0);
+        y1 = goodRound(0, 6, y1);
+
+        var newScale = [[x(x0), y(y0)], [x(x1), y(y1)]];
+        d3.select(this).transition().call(d3.event.target.move, newScale);
+
+        punchcard.weekdayRange = [Math.ceil(y0), Math.floor(y1)];
+        punchcard.hourRange = [Math.ceil(x0), Math.floor(x1)];
+
+        stack.paint();
+      }
+
+      svg.append("g")
+        .attr("class", "brush")
+        .call(d3.brush()
+          .extent([[0, 0], [w, h]])
+          .on("end", brushended));
     });
-}
-
-function paintStack1() {
-  var pad = 20, left_pad = 50;
-  var w = stack1Selection.width(),
-    h = stack1Selection.height();
-  var svg = d3.select("#stack1").append("svg")
-    .attr("width", stack1Selection.width())
-    .attr("height", stack1Selection.height())
-    .append("g");
-
-  d3.json("/aggregate2/?age=g").then(function (data) {
-    data = data["data"];
-    console.log(data);
-
-    var color = d3.scaleSequential(d3.interpolateGnBu).domain([-1, 5]);
-    var keyDomain = ["1", "2", "3", "5", "8", "13"];
-    var x = d3.scaleLinear()
-      .domain(d3.extent(data, function (obj) { return obj.age; }))
-      .range([left_pad, w - pad]);
-    var y = d3.scaleLinear().range([h - pad, pad]);
-    var xAxis = d3.axisBottom(x).ticks(10);
-      // .tickFormat(function (d) { return d.age });
-    var yAxis = d3.axisLeft(y).ticks(10);
-    var area = d3.area()
-      .x(function(d, i) { return x(i + x.domain()[0]); })
-      .y0(function(d) { return y(d[0]); })
-      .y1(function(d) { return y(d[1]); })
-      .curve(d3.curveBasis);
-    var stack = d3.stack()
-      .keys(keyDomain)
-      .value(function (obj, key) { return obj.detail[key]; });
-    var browser = stack(data);
-
-    console.log(browser);
-
-    y.domain([0, d3.max(data, function(d) {
-      return d3.sum(d3.values(d.detail));
-    })]);
-
-    svg.append("g")
-      .attr("class", "x axis")
-      .attr("transform", "translate(0, " + (h - pad) + ")")
-      .call(xAxis)
-      .selectAll("text")
-      .style("text-anchor", "end")
-      .attr("dx", "-.8em")
-      .attr("dy", "-.55em")
-      .attr("transform", "rotate(-90)");
-
-    svg.append("g")
-      .attr("class", "y axis")
-      .attr("transform", "translate(" + left_pad + ", 0)")
-      .call(yAxis);
-
-    svg.append("g").selectAll("path")
-      .data(browser)
-      .enter().append("path")
-      .attr("class", "area")
-      .style("fill", function(d) { return color(keyDomain.indexOf(d.key)); })
-      .attr("d", area);
-  });
-}
-
-function paintGraph(site) {
-    var width = link1Selection.width(),
-    height = link1Selection.height(),
-    radius = 5;
-
-  if (!graph1Simulation) {
-    graph1Simulation = d3.forceSimulation()
-      .force("link", d3.forceLink().id(function (d) {
-        return d.id;
-      }))
-      .force("charge", d3.forceManyBody().distanceMax(200))
-      .force("center", d3.forceCenter(width / 2, height / 2));
-    graph1Simulation.on("tick", null);
   }
+}
 
-  link1Selection.find("svg").remove();
+function Stack() {
+  this.width = stack1Selection.width();
+  this.height = stack1Selection.height();
+  this.svg = d3.select("#stack1").append("svg").attr("width", this.width).attr("height", this.height);
 
-  var svg = d3.select("#link1").append("svg")
-    .attr("width", width)
-    .attr("height", height)
+  this.paint = function (site) {
+    var pad = 20, left_pad = 50;
+    var w = this.width, h = this.height;
+    this.svg.selectAll("*").remove();
+    var svg = this.svg.append("g");
+    var url = "/aggregate2/?age=g";
+    if (site) url = url + "&site=" + site;
+
+    d3.json(url).then(function (data) {
+      data = data["data"];
+
+      var color = d3.scaleSequential(d3.interpolateGnBu).domain([-1, 5]);
+      var keyDomain = ["1", "2", "3", "5", "8", "13"];
+      var x = d3.scaleLinear()
+        .domain(d3.extent(data, function (obj) {
+          return obj.age;
+        }))
+        .range([left_pad, w - pad]);
+      var y = d3.scaleLinear().range([h - pad, pad]);
+      var xAxis = d3.axisBottom(x).ticks(10);
+      // .tickFormat(function (d) { return d.age });
+      var yAxis = d3.axisLeft(y).ticks(10);
+      var area = d3.area()
+        .x(function (d, i) {
+          return x(i + x.domain()[0]);
+        })
+        .y0(function (d) {
+          return y(d[0]);
+        })
+        .y1(function (d) {
+          return y(d[1]);
+        })
+        .curve(d3.curveBasis);
+      var stack = d3.stack()
+        .keys(keyDomain)
+        .value(function (obj, key) {
+          return obj.detail[key];
+        });
+      var browser = stack(data);
+
+      y.domain([0, d3.max(data, function (d) {
+        return d3.sum(d3.values(d.detail));
+      })]);
+
+      svg.append("g")
+        .attr("class", "x axis")
+        .attr("transform", "translate(0, " + (h - pad) + ")")
+        .call(xAxis)
+        .selectAll("text")
+        .style("text-anchor", "end")
+        .attr("dx", "-.8em")
+        .attr("dy", "-.55em")
+        .attr("transform", "rotate(-90)");
+
+      svg.append("g")
+        .attr("class", "y axis")
+        .attr("transform", "translate(" + left_pad + ", 0)")
+        .call(yAxis);
+
+      svg.append("g").selectAll("path")
+        .data(browser)
+        .enter().append("path")
+        .attr("class", "area")
+        .style("fill", function (d) {
+          return color(keyDomain.indexOf(d.key));
+        })
+        .attr("d", area);
+
+      function brushended() {
+        if (!d3.event.sourceEvent) return;
+        if (!d3.event.selection) return;
+        var xrange = d3.event.selection.map(x.invert);
+        xrange[0] = Math.max(xrange[0], x.domain()[0]);
+        xrange[1] = Math.min(xrange[1], x.domain()[1]);
+        d3.select(this).transition().call(d3.event.target.move, xrange.map(x));
+      }
+
+      svg.append("g")
+        .attr("class", "brush")
+        .call(d3.brushX()
+          .extent([[0, pad], [w, h - pad]])
+          .on("end", brushended));
+    });
+  }
+}
+
+function Graph() {
+  this.width = link1Selection.width();
+  this.height = link1Selection.height();
+
+  this.simulation = d3.forceSimulation()
+    .force("link", d3.forceLink().id(function (d) {
+      return d.id;
+    }))
+    .force("charge", d3.forceManyBody().distanceMax(200))
+    .force("center", d3.forceCenter(this.width / 2, this.height / 2));
+  this.simulation.on("tick", null);
+
+  this.svg = d3.select("#link1").append("svg")
+    .attr("width", this.width)
+    .attr("height", this.height)
     .attr("opacity", 0.6);
-  var link_group = svg.append("g")
-    .attr("class", "link");
-  var node_group = svg.append("g")
-    .attr("class", "node");
-  var max_rel = 1;
-  var min_rel = 0;
-  var widthScale = d3.scaleLinear().range([1, 5]);
 
-  var url = "/relation/";
-  if (site) url += "?site=" + site;
-  d3.json(url).then(function (data) {
-    max_rel = d3.max(data.link, function (obj) { return obj.relevance; });
-    min_rel = Math.max(d3.min(data.link, function (obj) { return obj.relevance; }) - 1, 0);
-    widthScale.domain([min_rel, max_rel]);
-    node_group
-      .selectAll("circle")
-      .data(data.node)
-      .enter().append("circle")
-      .on("click", function (d) {
-        d3.select(this).classed("selected", d.selected = !d.selected);
+  this.groupLink = this.svg.append("g").attr("class", "link");
+  this.groupNode = this.svg.append("g").attr("class", "node");
 
-        var active_node = [];
-        node_group.selectAll("circle").filter(function (d) {
-          return d.selected;
-        }).each(function (d) { active_node.push(d.id); });
-        console.log(active_node);
-        timeline.paint(active_node);
+  this.paint = function (site) {
+    var url = "/relation/";
+    if (site) url += "?site=" + site;
+
+    var width = this.width, height = this.height, radius = 5;
+    var svg = this.svg, groupLink = this.groupLink, groupNode = this.groupNode;
+    var simulation = this.simulation;
+    groupLink.selectAll("*").remove();
+    groupNode.selectAll("*").remove();
+    var max_rel = 1;
+    var min_rel = 0;
+    var widthScale = d3.scaleLinear().range([1, 5]);
+
+    d3.json(url).then(function (data) {
+      max_rel = d3.max(data.link, function (obj) {
+        return obj.relevance;
       });
+      min_rel = Math.max(d3.min(data.link, function (obj) {
+          return obj.relevance;
+        }) - 1, 0);
+      widthScale.domain([min_rel, max_rel]);
+      groupNode
+        .selectAll("circle")
+        .data(data.node)
+        .enter().append("circle")
+        .on("click", function (d) {
+          d3.select(this).classed("selected", d.selected = !d.selected);
 
-    var link = link_group.selectAll("line").data(data.link);
-    link.exit().remove();
-    link.enter().append("line");
+          var active_node = [];
+          groupNode.selectAll("circle").filter(function (d) {
+            return d.selected;
+          }).each(function (d) {
+            active_node.push(d.id);
+          });
+          console.log(active_node);
+          timeline.paint(active_node);
+        });
 
-    graph1Simulation
-      .nodes(data.node)
-      .on("tick", ticked);
+      var link = groupLink.selectAll("line").data(data.link);
+      link.exit().remove();
+      link.enter().append("line");
 
-    graph1Simulation
-      .force("link")
-      .links(data.link);
+      simulation.nodes(data.node).on("tick", ticked);
+      simulation.force("link").links(data.link);
+      simulation.alpha(0.1).restart();
 
-    graph1Simulation.alpha(0.1).restart();
+      function ticked() {
+        groupLink.selectAll("line").attr("x1", function (d) {
+          return d.source.x;
+        }).attr("y1", function (d) {
+          return d.source.y;
+        }).attr("x2", function (d) {
+          return d.target.x;
+        }).attr("y2", function (d) {
+          return d.target.y;
+        }).attr("stroke-width", function (d) {
+          return widthScale(d.relevance);
+        }).classed("strong", function (d) {
+          return d.birthplace > 0;
+        });
 
-    function ticked() {
-      link_group.selectAll("line").attr("x1", function (d) {
-        return d.source.x;
-      }).attr("y1", function (d) {
-        return d.source.y;
-      }).attr("x2", function (d) {
-        return d.target.x;
-      }).attr("y2", function (d) {
-        return d.target.y;
-      }).attr("stroke-width", function (d) {
-        return widthScale(d.relevance);
-      }).classed("strong", function (d) {
-        return d.birthplace > 0;
-      });
-
-      node_group.selectAll("circle")
-        .attr("cx", function (d) {
-          var err = hashID(d.id, 50);
-          return d.x = Math.max(radius + err, Math.min(width - radius - err, d.x));
-        }).attr("cy", function (d) {
+        groupNode.selectAll("circle")
+          .attr("cx", function (d) {
+            var err = hashID(d.id, 50);
+            return d.x = Math.max(radius + err, Math.min(width - radius - err, d.x));
+          }).attr("cy", function (d) {
           var err = hashID(d.id, 50);
           return d.y = Math.max(radius + err, Math.min(height - radius - err, d.y));
         }).attr("r", function (d) {
           return radius;
         });
-    }
-  });
+      }
+    });
 
-  function hashID(s, mod) {
-    var r = 0;
-    for (var i = 0; i < s.length; ++i)
-      r = (r * 123 + s.charCodeAt(i)) % mod;
-    return r;
-  }
+    function hashID(s, mod) {
+      var r = 0;
+      for (var i = 0; i < s.length; ++i)
+        r = (r * 123 + s.charCodeAt(i)) % mod;
+      return r;
+    }
+  };
 }
 
 function Timeline() {
@@ -435,26 +518,30 @@ function Timeline() {
   }
 }
 
-function paintTimeline() {
-  var width = timeline1Selection.width(), height = timeline1Selection.height() - 20;
-  var svg = d3.select("#timeline1").append("svg").attr("width", width).attr("height", height);
-  var parser = d3.isoParse;
-
-}
-
 function reset() {
   paintMap();
-  paintPunchCard();
-  paintStack1();
-  paintGraph();
+
+  punchcard = new PunchCard();
+  stack = new Stack();
   timeline = new Timeline();
+  graph = new Graph();
+
+  punchcard.paint();
+  stack.paint();
   timeline.paint();
+  graph.paint();
 }
 
 function onClickSite(site) {
-  paintGraph(site);
   if (siteTeenData.hasOwnProperty(site))
     outputTeenDetailsTable(siteTeenData[site].detail);
+  punchcard.paint(site);
+  stack.paint(site);
+  graph.paint(site);
+}
+
+function onTimeChange() {
+  stack.paint();
 }
 
 var mapSelection = $("#map"),
@@ -467,8 +554,7 @@ var mapSelection = $("#map"),
   group1 = $("#group1");
 var siteData, siteTeenData;
 var map1, mapLayer;
-var graph1Simulation;
-var timeline;
+var timeline, punchcard;
 adjustSize();
 d3.json("/site/")
   .then(function (data) {
