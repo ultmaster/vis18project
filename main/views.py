@@ -52,13 +52,19 @@ def aggregate1_view(request):
 
 def aggregate2_view(request):
     q = Q()
+    R2 = RecordAggregation2.objects
+    R3 = RecordAggregation3.objects
+    if "filter" in request.GET and request.GET["filter"] == "on":
+        R2 = R2.filter(migration=True)
+        R3 = R3.filter(migration=True)
+
     if "site" in request.GET:
         q &= Q(site_id=request.GET["site"])
     if request.GET.get("time") == "g":
-        data = RecordAggregation2.objects.filter(q).values("weekday", "hour").annotate(count_sum=Sum("count"), length=Sum("total_length") / Cast(Sum("count"), FloatField()))
+        data = R2.filter(q).values("weekday", "hour").annotate(count_sum=Sum("count"), length=Sum("total_length") / Cast(Sum("count"), FloatField()))
         return JsonResponse({"data": list(data)})
     elif request.GET.get("age") == "g":
-        data = RecordAggregation3.objects.filter(q).values("age", "length").annotate(count=Sum("count"))
+        data = R3.filter(q).values("age", "length").annotate(count=Sum("count"))
         ret = {}
         for d in data:
             ret.setdefault(d["age"], {})
@@ -80,15 +86,15 @@ def aggregate2_view(request):
             if "hour" in request.GET:
                 h1, h2 = map(int, request.GET["hour"].split(","))
                 q &= Q(hour__gte=h1, hour__lte=h2)
-            data = RecordAggregation2.objects.filter(q).values("site_id").annotate(Sum("count"))
+            data = R2.filter(q).values("site_id").annotate(Sum("count"))
         if request.GET.get("age") == "s":
             q = Q()
             if "range" in request.GET:
                 a1, a2 = map(int, request.GET["range"].split(","))
                 q &= Q(age__gte=a1, age__lte=a2)
-            data = RecordAggregation3.objects.filter(q).values("site_id").annotate(Sum("count"))
+            data = R3.filter(q).values("site_id").annotate(Sum("count"))
         else:
-            data = RecordAggregation2.objects.all().values("site_id").annotate(Sum("count"))
+            data = R2.all().values("site_id").annotate(Sum("count"))
         ret = {}
         for item in data:
             ret[item["site_id"]] = item["count__sum"]
@@ -96,18 +102,20 @@ def aggregate2_view(request):
 
 
 def get_relation_view(request):
+    S = SuspectRelation2.objects
+    if "filter" in request.GET and request.GET["filter"] == "on":
+        S = S.filter(birthplace__gt=0)
+
     ret = {}
     query_birthplace = {}
     query_result = Counter()
     if "site" in request.GET:
-        raw_query = SuspectRelation2.objects.filter(site_id=request.GET["site"])
+        raw_query = S.filter(site_id=request.GET["site"])
     else:
-        raw_query = SuspectRelation2.objects.filter(relevance__gt=3)
+        raw_query = S.filter(relevance__gt=3)
     for q in raw_query:
         query_result[(q.person1, q.person2)] += q.relevance
         query_birthplace[(q.person1, q.person2)] = q.birthplace
-    # if len(query_result) > MAX_REL_QUERY_LENGTH:
-    #     ret["warning"] = "Too many records returned"
     person_set = set()
     lst = ret["link"] = []
     for q in query_result:

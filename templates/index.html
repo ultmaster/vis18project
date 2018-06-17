@@ -32,7 +32,13 @@
       </div>
     </div>
     <div class="nine wide column">
-      <div class="ui top attached header">地图</div>
+      <div class="ui top attached header">
+      <div class="ui checkbox" id="migration" style="float:right;">
+        <input type="checkbox" name="migration">
+        <label>只显示流动人口</label>
+      </div>
+      地图
+      </div>
       <div class="ui attached segment fill-rest" id="map"></div>
     </div>
   </div>
@@ -49,11 +55,11 @@
   </div>
 
   <div class="ui grid seg" id="group1">
-    <div class="six wide column">
-      <div class="ui top attached header">重叠信息</div>
-      <div class="ui attached segment fill-rest" id="timeline1" style="overflow-y: hidden;"></div>
-    </div>
     <div class="ten wide column">
+      <div class="ui top attached header">重叠信息</div>
+      <div class="ui attached segment fill-rest" id="timeline1" style="overflow: hidden;"></div>
+    </div>
+    <div class="six wide column">
       <div class="ui top attached header">团伙检测</div>
       <div class="ui attached segment fill-rest" id="link1" style="overflow: hidden;"></div>
     </div>
