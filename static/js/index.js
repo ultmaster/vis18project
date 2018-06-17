@@ -177,23 +177,19 @@ function PunchCard() {
         .attr("transform", "translate(" + (left_pad - pad) + ", 0)")
         .call(yAxis);
 
-      svg.append("text")
-        .attr("class", "loading")
-        .text("Loading ...")
-        .attr("x", function () {
-          return w / 2;
-        })
-        .attr("y", function () {
-          return h / 2 - 5;
-        });
+      outerThis.brush = d3.brush()
+        .extent([[0, 0], [w, h]])
+        .on("end", brushended);
+
+      outerThis.brushArea = svg.append("g")
+        .attr("class", "brush")
+        .call(outerThis.brush);
 
       var r = d3.scaleLinear()
         .domain([0, d3.max(punchcard_data, function (d) {
           return d.count_sum;
         })])
         .range([0, 12]);
-
-      svg.selectAll(".loading").remove();
 
       var circleColor = d3.scaleSequential(d3.interpolateGnBu)
         .domain([0, d3.max(punchcard_data, function (d) {
@@ -213,6 +209,17 @@ function PunchCard() {
         })
         .attr("fill", function (d) {
           return circleColor(d.length);
+        })
+        .on("mouseover", function (d) {
+          var pos = $(d3.select(this).node()).position();
+          tooltip.css("top", pos.top + 20);
+          tooltip.css("left", pos.left - 10);
+          tooltip.html("总上网人次: " + d.count_sum + "<br>" +
+                       "平均上网时间: " + d.length.toPrecision(2));
+          tooltip.show();
+        })
+        .on("mouseout", function (d) {
+          tooltip.hide();
         })
         .transition()
         .duration(800)
@@ -250,14 +257,6 @@ function PunchCard() {
 
         onTimeChange();
       }
-
-      outerThis.brush = d3.brush()
-        .extent([[0, 0], [w, h]])
-        .on("end", brushended);
-
-      outerThis.brushArea = svg.append("g")
-        .attr("class", "brush")
-        .call(outerThis.brush);
 
       if (outerThis.weekdayRange) {
         var selection = [[x(outerThis.hourRange[0] - 0.5), y(outerThis.weekdayRange[0] - 0.5)],
@@ -649,7 +648,35 @@ function Timeline() {
         .append("rect")
         .attr("fill", "none")
         .attr("width", width)
-        .attr("height", height - 20);
+        .attr("height", height - 20)
+        .on("mousemove", function () {
+          var allRects = vis.selectAll("g").selectAll("rect");
+          var taken = false;
+          allRects.each(function (d) {
+            var bbox = this.getBBox();
+            var mouse = d3.mouse(this);
+            var mouseX = mouse[0], mouseY = mouse[1];
+            if (!taken && mouseX >= bbox.x &&
+              mouseX <= bbox.x + bbox.width &&
+              mouseY >= bbox.y &&
+              mouseY <= bbox.y + bbox.height) {
+              taken = true;
+              tooltip.css("top", bbox.y + bbox.height + $(svg.node()).position().top);
+              tooltip.css("left", bbox.width / 2 + bbox.x - 10 + $(svg.node()).position().left);
+              tooltip.html("证件号: " + d.person_id + "<br>" +
+                           "上线时间: " + d.online_time + "<br>" +
+                           "下线时间: " + d.offline_time + "<br>" +
+                           "网吧: " + d.site_name);
+              tooltip.show();
+            }
+            if (!taken) {
+              tooltip.hide();
+            }
+          })
+        })
+        .on("mouseout", function () {
+          tooltip.hide();
+        });
 
       catchAll.call(d3.zoom()
         .scaleExtent([0.5, 100])
@@ -705,7 +732,8 @@ var mapSelection = $("#map"),
   timeline1Selection = $("#timeline1"),
   tableBodySelection = $("#teen-table-body"),
   group1 = $("#group1"),
-  group2 = $("#group2");
+  group2 = $("#group2"),
+  tooltip = $("#tooltip");
 var siteData, siteTeenData;
 var map1, mapLayer;
 var timeline, punchcard;

@@ -150,14 +150,16 @@ def get_teens_view(request):
 
 def get_timeline(request):
     ids = list(filter(lambda x: x, request.GET.get('id', '').split(',')))
-    recs = Record.objects.filter(person_id__in=ids).only('id', 'site_id', 'online_time', 'offline_time')\
+    recs = Record.objects.filter(person_id__in=ids).select_related("site").only('id', 'site_id', 'site__title',
+                                                                                'online_time', 'offline_time')\
         .order_by("person_id", "online_time")
     ret = {id: [] for id in ids}
     for r in recs:
         ret[r.person_id].append({"person_id": r.person_id,
                                  "site_id": r.site_id,
                                  "online_time": str(r.online_time),
-                                 "offline_time": str(r.offline_time)})
+                                 "offline_time": str(r.offline_time),
+                                 "site_name": r.site.title})
     r2 = []
     for r in ret:
         r2.append({"key": r, "values": ret[r]})
