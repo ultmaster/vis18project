@@ -50,6 +50,7 @@ def aggregate1_view(request):
         return JsonResponse(ret)
 
 
+@cache_page(60 * 60)
 def aggregate2_view(request):
     q = Q()
     R2 = RecordAggregation2.objects
@@ -87,7 +88,7 @@ def aggregate2_view(request):
                 h1, h2 = map(int, request.GET["hour"].split(","))
                 q &= Q(hour__gte=h1, hour__lte=h2)
             data = R2.filter(q).values("site_id").annotate(Sum("count"))
-        if request.GET.get("age") == "s":
+        elif request.GET.get("age") == "s":
             q = Q()
             if "range" in request.GET:
                 a1, a2 = map(int, request.GET["range"].split(","))
@@ -101,6 +102,7 @@ def aggregate2_view(request):
         return JsonResponse(ret)
 
 
+@cache_page(60 * 60)
 def get_relation_view(request):
     S = SuspectRelation2.objects
     if "filter" in request.GET and request.GET["filter"] == "on":
@@ -130,6 +132,7 @@ def get_relation_view(request):
     return JsonResponse(ret)
 
 
+@cache_page(60 * 60)
 def get_teens_view(request):
     ret = {}
     for pt in PossibleTeens.objects.all():
@@ -151,7 +154,8 @@ def get_teens_view(request):
 def get_timeline(request):
     ids = list(filter(lambda x: x, request.GET.get('id', '').split(',')))
     recs = Record.objects.filter(person_id__in=ids).select_related("site").only('id', 'site_id', 'site__title',
-                                                                                'online_time', 'offline_time')\
+                                                                                'online_time', 'offline_time',
+                                                                                'customer_name', )\
         .order_by("person_id", "online_time")
     ret = {id: [] for id in ids}
     for r in recs:
@@ -159,7 +163,8 @@ def get_timeline(request):
                                  "site_id": r.site_id,
                                  "online_time": str(r.online_time),
                                  "offline_time": str(r.offline_time),
-                                 "site_name": r.site.title})
+                                 "site_name": r.site.title,
+                                 "customer_name": r.customer_name,})
     r2 = []
     for r in ret:
         r2.append({"key": r, "values": ret[r]})

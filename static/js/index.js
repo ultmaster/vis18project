@@ -100,7 +100,7 @@ function paintMap() {
         onClickSite(rawData.site_id);
       });
 
-      var fillColorSet = ["#6CB3D9", "#D4B06A", "#b15215"];
+      var fillColorSet = ["#6CB3D9", "#b15215", "#D4B06A"];
 
       mapLayer.setOptions({
         style: {
@@ -221,8 +221,6 @@ function PunchCard() {
         .on("mouseout", function (d) {
           tooltip.hide();
         })
-        .transition()
-        .duration(800)
         .attr("r", function (d) {
           return r(d.count_sum);
         });
@@ -236,6 +234,7 @@ function PunchCard() {
         if (!d3.event.selection) {
           punchcard.weekdayRange = null;
           punchcard.hourRange = null;
+          onTimeChange();
           return;
         }
         var x0 = x.invert(d3.event.selection[0][0]),
@@ -360,7 +359,11 @@ function Stack() {
 
       function brushended() {
         if (!d3.event.sourceEvent) return;
-        if (!d3.event.selection) return;
+        if (!d3.event.selection) {
+          this.ageRange = null;
+          onAgeChange();
+          return;
+        }
         var xrange = d3.event.selection.map(x.invert);
         xrange[0] = Math.max(xrange[0], x.domain()[0]);
         xrange[1] = Math.min(xrange[1], x.domain()[1]);
@@ -661,12 +664,16 @@ function Timeline() {
               mouseY >= bbox.y &&
               mouseY <= bbox.y + bbox.height) {
               taken = true;
-              tooltip.css("top", bbox.y + bbox.height + $(svg.node()).position().top);
-              tooltip.css("left", bbox.width / 2 + bbox.x - 10 + $(svg.node()).position().left);
+              // console.log(bbox);
+              // console.log(mouseX + " " + mouseY);
+              tooltip.css("top", bbox.y + bbox.height + $(svg.node().parentNode).position().top);
+              tooltip.css("left", bbox.width / 2 + bbox.x - 10 + $(svg.node().parentNode).position().left);
               tooltip.html("证件号: " + d.person_id + "<br>" +
+                           "姓名: " + d.customer_name + "<br>" +
                            "上线时间: " + d.online_time + "<br>" +
                            "下线时间: " + d.offline_time + "<br>" +
-                           "网吧: " + d.site_name);
+                           "网吧: " + d.site_name + "<br>" +
+                           "网吧编号:" + d.site_id);
               tooltip.show();
             }
             if (!taken) {
@@ -718,10 +725,12 @@ function onClickSite(site) {
 
 function onTimeChange() {
   paintMap();
+  // stack.paint(siteEnabled);
 }
 
 function onAgeChange() {
   paintMap();
+  // punchcard.paint(siteEnabled);
 }
 
 var mapSelection = $("#map"),
